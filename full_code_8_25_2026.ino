@@ -199,22 +199,22 @@ bool fireTimingIsValid();
 
 void setup() {
   Serial.begin(9600);
-  Serial.println(F("Starting setup"));
+  Serial.println(F("Setup: starting."));
   //resetEEPROM();//comment this out unless you want to reset saved FireTimingValues during each arduino startup
   
   
   // ---------------------------------------------------
   // Configure relays
   // ---------------------------------------------------
-  Serial.print("NUM_RELAYS: ");
+  Serial.print(F("Relay channels: "));
   Serial.println(NUM_RELAYS);
-  // Set all relay pins as outputs and turn all relays OFF
+  // Preload the output latch to OFF before enabling each pin as an output.
+  // This avoids a brief active-low relay pulse during startup.
   for (byte i = 0; i < NUM_RELAYS; i++) {
-    pinMode(relayPins[i], OUTPUT);
     digitalWrite(relayPins[i], HIGH);  // OFF for active-low relay board
-    Serial.print(i);
-    Serial.print(" ");
+    pinMode(relayPins[i], OUTPUT);
   }
+  Serial.println(F("Relays: initialized OFF."));
   
   // ---------------------------------------------------
   // Configure buttons
@@ -233,13 +233,12 @@ void setup() {
 
   pinMode(EXTERNAL_TOGGLE_BURST, INPUT_PULLUP);
   pinMode(EXTERNAL_TOGGLE_SHOT, INPUT_PULLUP);
-  Serial.println(F("1"));
   Toggle_BurstState = digitalRead(EXTERNAL_TOGGLE_BURST);
   lastToggle_BurstReading = Toggle_BurstState;
 
   Toggle_ShotQtyState = digitalRead(EXTERNAL_TOGGLE_SHOT);
   lastToggle_ShotQtyReading = Toggle_ShotQtyState;
-  Serial.println(F("2"));
+  Serial.println(F("Inputs: buttons and toggles initialized."));
   // ---------------------------------------------------
   // Start OLED
   // ---------------------------------------------------
@@ -251,8 +250,8 @@ void setup() {
   } else {
     display.clearDisplay();
     display.setTextColor(SSD1306_WHITE);
+    Serial.println(F("OLED: initialized."));
   }
-  Serial.println(F("3"));
   /**/
   // ---------------------------------------------------
   // Load saved FireTimingValues
@@ -266,7 +265,7 @@ void setup() {
   // ---------------------------------------------------
 
   displayCurrentVariable();
-  Serial.println(F("Setup complete"));
+  Serial.println(F("Setup: complete."));
 }
 
 
@@ -283,7 +282,7 @@ void loop() {
   // ---------------------------------------------------
 
   if (ButtonPressed(0, INTERNAL_BUTTON_NEXT)) {
-    Serial.println(0);
+    Serial.println(F("Internal: next timing selected."));
     selected_timing_Variable++;
 
     if (selected_timing_Variable >= NUM_TIMING_VARIABLES) {
@@ -301,7 +300,7 @@ void loop() {
   // ---------------------------------------------------
 
   if (ButtonPressed(1, INTERNAL_BUTTON_INCREMENT)) {
-    Serial.println(1);
+    Serial.println(F("Internal: increase timing requested."));
     if (FireTimingValues[selected_timing_Variable] < MAX_VALUE) {
 
       FireTimingValues[selected_timing_Variable]++;
@@ -316,7 +315,7 @@ void loop() {
   // ---------------------------------------------------
 
   if (ButtonPressed(2, INTERNAL_BUTTON_DECREMENT)) {
-    Serial.println(2);
+    Serial.println(F("Internal: decrease timing requested."));
     if (FireTimingValues[selected_timing_Variable] > MIN_VALUE) {
 
       FireTimingValues[selected_timing_Variable]--;
@@ -331,7 +330,7 @@ void loop() {
   // ---------------------------------------------------
 
   if (ButtonPressed(3, INTERNAL_BUTTON_SAVE)) {
-    Serial.println(3);
+    Serial.println(F("Internal: timing saved."));
     saveCurrentVariable();
 
     displaySavedMessage();
@@ -477,28 +476,29 @@ void firecontrol(uint8_t buttonIndex) {
 
     switch (eventIndex) {
       case 0:
-        Serial.println("RapidMix_Start");
+        Serial.println(F("Event: RapidMix start."));
         digitalWrite(relayPins[RELAY_RAPID_MIX], LOW); 
         break;
 
       case 1:
-        Serial.println("RapidMix_End");
+        Serial.println(F("Event: RapidMix end."));
         digitalWrite(relayPins[RELAY_RAPID_MIX], HIGH);
         break;
 
       case 2:
-        Serial.println("RichMix_Start");
+        Serial.println(F("Event: RichMix start."));
         digitalWrite(relayPins[RELAY_RICH_MIX], LOW);
         break;
 
       case 3:
-        Serial.println("RichMix_End");
+        Serial.println(F("Event: RichMix end."));
         digitalWrite(relayPins[RELAY_RICH_MIX], HIGH);
         break;
 
       case 4:
-        Serial.println("ColorMix_Start");
+        Serial.print(F("Event: ColorMix start ("));
         printExternalButtonName(buttonIndex);
+        Serial.println(F(")."));
         switch (buttonIndex) {
           case 0: digitalWrite(relayPins[RELAY_COLOR_RANDOM], LOW); break;
           case 1: digitalWrite(relayPins[RELAY_COLOR_NORMAL], LOW); break;
@@ -509,7 +509,9 @@ void firecontrol(uint8_t buttonIndex) {
         break;
 
       case 5:
-        Serial.println("ColorMix_End");
+        Serial.print(F("Event: ColorMix end ("));
+        printExternalButtonName(buttonIndex);
+        Serial.println(F(")."));
         switch (buttonIndex) {
           case 0: digitalWrite(relayPins[RELAY_COLOR_RANDOM], HIGH); break;
           case 1: digitalWrite(relayPins[RELAY_COLOR_NORMAL], HIGH); break;
@@ -520,12 +522,12 @@ void firecontrol(uint8_t buttonIndex) {
         break;
 
       case 6:
-        Serial.println("I_Start");
+        Serial.println(F("Event: Igniter start."));
         digitalWrite(relayPins[RELAY_IGNITER], LOW);
         break;
 
       case 7:
-        Serial.println("I_End");
+        Serial.println(F("Event: Igniter end."));
         digitalWrite(relayPins[RELAY_IGNITER], HIGH);
         break;
     }
