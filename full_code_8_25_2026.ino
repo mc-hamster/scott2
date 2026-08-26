@@ -15,6 +15,10 @@ const byte relayPins[] = {
 const byte NUM_RELAYS = (sizeof(relayPins));
 
 const unsigned long relayDwellTimeMS = 500;
+
+// Long burst extends RapidMix and shifts every later event by this amount.
+// Change this constant to tune the fixed long-burst extension.
+const unsigned long BURST_LONG_EXTRA_DELAY_MS = 250UL;
 // =====================================================
 // OLED SETTINGS
 // =====================================================
@@ -142,6 +146,7 @@ FireState fireState = FireState::IDLE;
 uint8_t eventIndex = 0;
 unsigned long fireStartTime = 0;
 uint8_t activeFireTimingValues[NUM_TIMING_VARIABLES];
+bool activeLongBurst = false;
 uint8_t activeColorButton = 0;
 
 /*
@@ -410,6 +415,8 @@ void requestFireSequence(uint8_t buttonIndex) {
     activeFireTimingValues[i] = FireTimingValues[i];
   }
 
+  // LOW is Short and HIGH is Long, matching the existing toggle display.
+  activeLongBurst = (Toggle_BurstState == HIGH);
   turnFireRelaysOff();
   handleExternalButtonPress(buttonIndex);
   activeColorButton = buttonIndex;
@@ -447,8 +454,16 @@ void firecontrol(uint8_t buttonIndex) {
   unsigned long elapsed = millis() - fireStartTime;
 
   // Process all events that are now due
-  while (eventIndex < NUM_TIMING_VARIABLES &&
-         elapsed >= (unsigned long)activeFireTimingValues[eventIndex] * 10UL) {
+  unsigned long eventTimeMS =
+      (unsigned long)activeFireTimingValues[eventIndex] * 10UL;
+
+  // Long burst holds RapidMix on 250 ms longer. Every event after RapidMix
+  // Start moves by the same amount so their relative timing is preserved.
+  if (activeLongBurst && eventIndex >= 1) {
+    eventTimeMS += BURST_LONG_EXTRA_DELAY_MS;
+  }
+
+  while (eventIndex < NUM_TIMING_VARIABLES && elapsed >= eventTimeMS) {
 
     switch (eventIndex) {
       case 0:
@@ -506,6 +521,13 @@ void firecontrol(uint8_t buttonIndex) {
     }
 
     eventIndex++;
+
+    if (eventIndex < NUM_TIMING_VARIABLES) {
+      eventTimeMS = (unsigned long)activeFireTimingValues[eventIndex] * 10UL;
+      if (activeLongBurst && eventIndex >= 1) {
+        eventTimeMS += BURST_LONG_EXTRA_DELAY_MS;
+      }
+    }
   }
  
  // Sequence finished
