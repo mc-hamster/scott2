@@ -71,7 +71,6 @@ uint8_t FireTimingValues[NUM_TIMING_VARIABLES] = {
   60   // I_End
 };
 
-
 // Currently selected variable, used for display
 uint8_t selected_timing_Variable = 0;
 
@@ -132,16 +131,17 @@ unsigned long lastDebounceTime[9] = {
   0, 0, 0, 0, 0,0,0, 0,0
 };
 
-//firecontrol variables
-bool firing = false;
-uint8_t eventIndex = 0;
-uint8_t doubleshoteventIndex = 0;
-unsigned long fireStartTime = 0;
-unsigned long doubleshotfireStartTime = 0;
-uint8_t doubleshotfiretiming[NUM_TIMING_VARIABLES] = {
-  0,  // shot 1 start
-  2000,  // shot 2 start   VALUE MUST BE EDITED HERE!
+// Fire-control state. A sequence is either idle or running; a new fire
+// request is intentionally ignored while a sequence is already running.
+enum class FireState : uint8_t {
+  IDLE,
+  RUNNING
 };
+
+FireState fireState = FireState::IDLE;
+uint8_t eventIndex = 0;
+unsigned long fireStartTime = 0;
+uint8_t activeFireTimingValues[NUM_TIMING_VARIABLES];
 
 /*
 int buttonState[NUM_BUTTONS];
@@ -172,7 +172,10 @@ void updateToggles(unsigned long currentTime);
 void handleExternalButtonPress(int buttonIndex);
 void printSelectedVariableName();
 void printExternalButtonName(int buttonIndex);
-void firecontrol(int buttonIndex);
+void firecontrol();
+void requestFireSequence(uint8_t buttonIndex);
+void turnFireRelaysOff();
+bool fireTimingIsValid();
 
 // =====================================================
 // SETUP
@@ -341,32 +344,27 @@ void loop() {
   // ---------------------------------------------------
 
   if (ButtonPressed(4, EXTERNAL_BUTTON_FIRE_RANDOM)) {
-    Serial.println("EXTERNAL_BUTTON_FIRE_RANDOM");
-    handleExternalButtonPress(0);
+    requestFireSequence(0);
   }
 
   if (ButtonPressed(5, EXTERNAL_BUTTON_FIRE_NORMAL)) {
-    Serial.println("EXTERNAL_BUTTON_FIRE_NORMAL");
-    handleExternalButtonPress(1);
+    requestFireSequence(1);
   }
 
   if (ButtonPressed(6, EXTERNAL_BUTTON_FIRE_RED)) {
-    Serial.println("EXTERNAL_BUTTON_FIRE_RED");
-    handleExternalButtonPress(2);
+    requestFireSequence(2);
   }
 
   if (ButtonPressed(7, EXTERNAL_BUTTON_FIRE_GREEN)) {
-    Serial.println("EXTERNAL_BUTTON_FIRE_GREEN");
-    handleExternalButtonPress(3);
+    requestFireSequence(3);
   }
 
   if (ButtonPressed(8, EXTERNAL_BUTTON_FIRE_PINK)) {
-    Serial.println("EXTERNAL_BUTTON_FIRE_PINK");
-    handleExternalButtonPress(4);
+    requestFireSequence(4);
   }
 
   // Keep the active sequence running
-
+  firecontrol();
 
 }
 
@@ -388,49 +386,63 @@ void handleExternalButtonPress(int buttonIndex) {
 
   if (Toggle_ShotQtyState == LOW) {
     Serial.println(F("Single"));
-    firing = true;
-    //eventIndex = 0;
-    firecontrol(buttonIndex);
   }
   else {
     Serial.println(F("Double"));
-    firing = true;
-    //eventIndex = 0;
-    //fireStartTime = millis();
-    unsigned long doubleshotelapsed = millis() - fireStartTime;
-    //eventIndex = 0;
-    doubleshoteventIndex=0;
-    // Process all events that are now due
-    while (doubleshoteventIndex < 2 &&
-          doubleshotelapsed >= doubleshotfiretiming[doubleshoteventIndex]) {
-
-      switch (doubleshoteventIndex) {
-        case 0:
-          Serial.println(F("Double Shot- Shot 1"));
-          firecontrol(buttonIndex);
-          break;
-
-        case 1:
-          Serial.println(F("Double Shot- Shot 2"));
-          firecontrol(buttonIndex);
-          break;
-      }
-      doubleshoteventIndex++;
-    }
   }
 }
 
-void firecontrol(int buttonIndex) {
-    if (!firing) {
+void requestFireSequence(uint8_t buttonIndex) {
+  if (fireState == FireState::RUNNING) {
+    Serial.println(F("Fire request ignored: sequence already running."));
     return;
   }
 
-  fireStartTime = millis();
-  unsigned long elapsed = millis() - fireStartTime;
+  if (!fireTimingIsValid()) {
+    Serial.println(F("Fire request rejected: a start time exceeds its end time."));
+    return;
+  }
+
+  // Snapshot the settings. Changes on the internal panel affect the next
+  // firing only, never the sequence already in progress.
+  for (uint8_t i = 0; i < NUM_TIMING_VARIABLES; i++) {
+    activeFireTimingValues[i] = FireTimingValues[i];
+  }
+
+  turnFireRelaysOff();
+  handleExternalButtonPress(buttonIndex);
   eventIndex = 0;
+  fireStartTime = millis();
+  fireState = FireState::RUNNING;
+  Serial.println(F("Fire sequence started."));
+}
+
+bool fireTimingIsValid() {
+  for (uint8_t i = 0; i < NUM_TIMING_VARIABLES; i += 2) {
+    if (FireTimingValues[i] > FireTimingValues[i + 1]) {
+      return false;
+    }
+  }
+  return true;
+}
+
+void turnFireRelaysOff() {
+  digitalWrite(relayPins[4], HIGH);   // RapidMix off
+  digitalWrite(relayPins[8], HIGH);   // RichMix off
+  digitalWrite(relayPins[9], HIGH);   // ColorMix off
+  digitalWrite(relayPins[10], HIGH);  // Igniter off
+}
+
+void firecontrol() {
+  if (fireState != FireState::RUNNING) {
+    return;
+  }
+
+  unsigned long elapsed = millis() - fireStartTime;
+
   // Process all events that are now due
   while (eventIndex < NUM_TIMING_VARIABLES &&
-         elapsed >= FireTimingValues[eventIndex]) {
+         elapsed >= (unsigned long)activeFireTimingValues[eventIndex] * 10UL) {
 
     switch (eventIndex) {
       case 0:
@@ -455,35 +467,22 @@ void firecontrol(int buttonIndex) {
 
       case 4:
         Serial.println("ColorMix_Start");
-        printExternalButtonName(buttonIndex);
-        switch (buttonIndex) {
-          case 0: digitalWrite(relayPins[9], LOW); break;
-          case 1: digitalWrite(relayPins[10], LOW); break;
-          case 2: digitalWrite(relayPins[11], LOW); break;
-          case 3: digitalWrite(relayPins[12], LOW); break;
-          case 4: digitalWrite(relayPins[13], LOW); break;
-        }
+        digitalWrite(relayPins[9], LOW);
         break;
 
       case 5:
         Serial.println("ColorMix_End");
-        switch (buttonIndex) {
-          case 0: digitalWrite(relayPins[9], HIGH); break;
-          case 1: digitalWrite(relayPins[10], HIGH); break;
-          case 2: digitalWrite(relayPins[11], HIGH); break;
-          case 3: digitalWrite(relayPins[12], HIGH); break;
-          case 4: digitalWrite(relayPins[13], HIGH); break;
-        }
+        digitalWrite(relayPins[9], HIGH);
         break;
 
       case 6:
         Serial.println("I_Start");
-        digitalWrite(relayPins[14], LOW);
+        digitalWrite(relayPins[10], LOW);
         break;
 
       case 7:
         Serial.println("I_End");
-        digitalWrite(relayPins[14], HIGH);
+        digitalWrite(relayPins[10], HIGH);
         break;
     }
 
@@ -492,8 +491,9 @@ void firecontrol(int buttonIndex) {
  
  // Sequence finished
   if (eventIndex >= NUM_TIMING_VARIABLES) {
-    firing = false;
-    Serial.println("firecontrol complete");
+    turnFireRelaysOff();
+    fireState = FireState::IDLE;
+    Serial.println(F("Fire sequence complete."));
   }
   
 }
