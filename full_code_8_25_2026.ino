@@ -142,6 +142,7 @@ FireState fireState = FireState::IDLE;
 uint8_t eventIndex = 0;
 unsigned long fireStartTime = 0;
 uint8_t activeFireTimingValues[NUM_TIMING_VARIABLES];
+uint8_t activeColorButton = 0;
 
 /*
 int buttonState[NUM_BUTTONS];
@@ -172,7 +173,7 @@ void updateToggles(unsigned long currentTime);
 void handleExternalButtonPress(int buttonIndex);
 void printSelectedVariableName();
 void printExternalButtonName(int buttonIndex);
-void firecontrol();
+void firecontrol(uint8_t buttonIndex);
 void requestFireSequence(uint8_t buttonIndex);
 void turnFireRelaysOff();
 bool fireTimingIsValid();
@@ -364,7 +365,7 @@ void loop() {
   }
 
   // Keep the active sequence running
-  firecontrol();
+  firecontrol(activeColorButton);
 
 }
 
@@ -411,6 +412,7 @@ void requestFireSequence(uint8_t buttonIndex) {
 
   turnFireRelaysOff();
   handleExternalButtonPress(buttonIndex);
+  activeColorButton = buttonIndex;
   eventIndex = 0;
   fireStartTime = millis();
   fireState = FireState::RUNNING;
@@ -429,11 +431,15 @@ bool fireTimingIsValid() {
 void turnFireRelaysOff() {
   digitalWrite(relayPins[4], HIGH);   // RapidMix off
   digitalWrite(relayPins[8], HIGH);   // RichMix off
-  digitalWrite(relayPins[9], HIGH);   // ColorMix off
-  digitalWrite(relayPins[10], HIGH);  // Igniter off
+  // Color is selected by the fire button, so all five possible color
+  // outputs must be forced off for a safe baseline.
+  for (uint8_t i = 9; i <= 13; i++) {
+    digitalWrite(relayPins[i], HIGH);
+  }
+  digitalWrite(relayPins[14], HIGH);  // Igniter off
 }
 
-void firecontrol() {
+void firecontrol(uint8_t buttonIndex) {
   if (fireState != FireState::RUNNING) {
     return;
   }
@@ -467,22 +473,35 @@ void firecontrol() {
 
       case 4:
         Serial.println("ColorMix_Start");
-        digitalWrite(relayPins[9], LOW);
+        printExternalButtonName(buttonIndex);
+        switch (buttonIndex) {
+          case 0: digitalWrite(relayPins[9], LOW); break;
+          case 1: digitalWrite(relayPins[10], LOW); break;
+          case 2: digitalWrite(relayPins[11], LOW); break;
+          case 3: digitalWrite(relayPins[12], LOW); break;
+          case 4: digitalWrite(relayPins[13], LOW); break;
+        }
         break;
 
       case 5:
         Serial.println("ColorMix_End");
-        digitalWrite(relayPins[9], HIGH);
+        switch (buttonIndex) {
+          case 0: digitalWrite(relayPins[9], HIGH); break;
+          case 1: digitalWrite(relayPins[10], HIGH); break;
+          case 2: digitalWrite(relayPins[11], HIGH); break;
+          case 3: digitalWrite(relayPins[12], HIGH); break;
+          case 4: digitalWrite(relayPins[13], HIGH); break;
+        }
         break;
 
       case 6:
         Serial.println("I_Start");
-        digitalWrite(relayPins[10], LOW);
+        digitalWrite(relayPins[14], LOW);
         break;
 
       case 7:
         Serial.println("I_End");
-        digitalWrite(relayPins[10], HIGH);
+        digitalWrite(relayPins[14], HIGH);
         break;
     }
 
