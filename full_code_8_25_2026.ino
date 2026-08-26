@@ -12,7 +12,17 @@ const byte relayPins[] = {
   38,40,42,44,46,48,50,52,
   39,41,43,45,47,49,51,53
 };
-const byte NUM_RELAYS = (sizeof(relayPins));
+const byte NUM_RELAYS = sizeof(relayPins) / sizeof(relayPins[0]);
+
+// Indexes into relayPins for the channels used by the firing sequence.
+const byte RELAY_RAPID_MIX = 4;
+const byte RELAY_RICH_MIX = 8;
+const byte RELAY_COLOR_RANDOM = 9;
+const byte RELAY_COLOR_NORMAL = 10;
+const byte RELAY_COLOR_RED = 11;
+const byte RELAY_COLOR_GREEN = 12;
+const byte RELAY_COLOR_PINK = 13;
+const byte RELAY_IGNITER = 14;
 
 const unsigned long relayDwellTimeMS = 500;
 
@@ -436,14 +446,14 @@ bool fireTimingIsValid() {
 }
 
 void turnFireRelaysOff() {
-  digitalWrite(relayPins[4], HIGH);   // RapidMix off
-  digitalWrite(relayPins[8], HIGH);   // RichMix off
+  digitalWrite(relayPins[RELAY_RAPID_MIX], HIGH);  // RapidMix off
+  digitalWrite(relayPins[RELAY_RICH_MIX], HIGH);   // RichMix off
   // Color is selected by the fire button, so all five possible color
   // outputs must be forced off for a safe baseline.
-  for (uint8_t i = 9; i <= 13; i++) {
+  for (uint8_t i = RELAY_COLOR_RANDOM; i <= RELAY_COLOR_PINK; i++) {
     digitalWrite(relayPins[i], HIGH);
   }
-  digitalWrite(relayPins[14], HIGH);  // Igniter off
+  digitalWrite(relayPins[RELAY_IGNITER], HIGH);  // Igniter off
 }
 
 void firecontrol(uint8_t buttonIndex) {
@@ -468,55 +478,55 @@ void firecontrol(uint8_t buttonIndex) {
     switch (eventIndex) {
       case 0:
         Serial.println("RapidMix_Start");
-        digitalWrite(relayPins[4], LOW); 
+        digitalWrite(relayPins[RELAY_RAPID_MIX], LOW); 
         break;
 
       case 1:
         Serial.println("RapidMix_End");
-        digitalWrite(relayPins[4], HIGH);
+        digitalWrite(relayPins[RELAY_RAPID_MIX], HIGH);
         break;
 
       case 2:
         Serial.println("RichMix_Start");
-        digitalWrite(relayPins[8], LOW);
+        digitalWrite(relayPins[RELAY_RICH_MIX], LOW);
         break;
 
       case 3:
         Serial.println("RichMix_End");
-        digitalWrite(relayPins[8], HIGH);
+        digitalWrite(relayPins[RELAY_RICH_MIX], HIGH);
         break;
 
       case 4:
         Serial.println("ColorMix_Start");
         printExternalButtonName(buttonIndex);
         switch (buttonIndex) {
-          case 0: digitalWrite(relayPins[9], LOW); break;
-          case 1: digitalWrite(relayPins[10], LOW); break;
-          case 2: digitalWrite(relayPins[11], LOW); break;
-          case 3: digitalWrite(relayPins[12], LOW); break;
-          case 4: digitalWrite(relayPins[13], LOW); break;
+          case 0: digitalWrite(relayPins[RELAY_COLOR_RANDOM], LOW); break;
+          case 1: digitalWrite(relayPins[RELAY_COLOR_NORMAL], LOW); break;
+          case 2: digitalWrite(relayPins[RELAY_COLOR_RED], LOW); break;
+          case 3: digitalWrite(relayPins[RELAY_COLOR_GREEN], LOW); break;
+          case 4: digitalWrite(relayPins[RELAY_COLOR_PINK], LOW); break;
         }
         break;
 
       case 5:
         Serial.println("ColorMix_End");
         switch (buttonIndex) {
-          case 0: digitalWrite(relayPins[9], HIGH); break;
-          case 1: digitalWrite(relayPins[10], HIGH); break;
-          case 2: digitalWrite(relayPins[11], HIGH); break;
-          case 3: digitalWrite(relayPins[12], HIGH); break;
-          case 4: digitalWrite(relayPins[13], HIGH); break;
+          case 0: digitalWrite(relayPins[RELAY_COLOR_RANDOM], HIGH); break;
+          case 1: digitalWrite(relayPins[RELAY_COLOR_NORMAL], HIGH); break;
+          case 2: digitalWrite(relayPins[RELAY_COLOR_RED], HIGH); break;
+          case 3: digitalWrite(relayPins[RELAY_COLOR_GREEN], HIGH); break;
+          case 4: digitalWrite(relayPins[RELAY_COLOR_PINK], HIGH); break;
         }
         break;
 
       case 6:
         Serial.println("I_Start");
-        digitalWrite(relayPins[14], LOW);
+        digitalWrite(relayPins[RELAY_IGNITER], LOW);
         break;
 
       case 7:
         Serial.println("I_End");
-        digitalWrite(relayPins[14], HIGH);
+        digitalWrite(relayPins[RELAY_IGNITER], HIGH);
         break;
     }
 
